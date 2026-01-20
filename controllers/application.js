@@ -104,7 +104,7 @@ const applyHandler = async (req, res) => {
       idNumber: req.body.idNumber,
       residencyStatus: req.body.residencyStatus,
       ...(req.body.shareCode && { shareCode: req.body.shareCode }),
-      consent_to_rent: req.body.consent_to_rent,
+      consent_to_rent: req.body.consent_to_rent === "true",
       employmentStatus: req.body.employmentStatus,
       jobTitle: req.body.jobTitle,
       ...(req.body.employer_name && { employer_name: req.body.employer_name }),
@@ -162,10 +162,10 @@ const applyHandler = async (req, res) => {
           req.body.reference_years_known,
         }),
         ...(req.body.guarantor && { guarantor: req.body.guarantor }),
-        consent_contact_landlord: req.body.consent_contact_landlord,
-        all_info_is_true: req.body.all_info_is_true,
-        agree_to_policy: req.body.agree_to_policy,
-        agree_to_policy: req.body.agree_to_policy,
+        consent_contact_landlord: req.body.consent_contact_landlord === "true",
+        all_info_is_true: req.body.all_info_is_true === "true",
+        agree_to_policy: req.body.agree_to_policy === "true",
+     
               signature : req.body.signature
     });
       
