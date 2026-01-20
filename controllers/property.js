@@ -40,6 +40,11 @@ if (req.files?.property_documents) {
 
     const property = await Property.create({
       ...req.body,
+      square_feet: Number(req.body.square_feet),
+      bedrooms: Number(req.body.bedrooms),
+      bathrooms: Number(req.body.bathrooms),
+      parkingspaces: Number(req.body.parkingspaces),
+      property_value : Number(req.body.property_value),
       property_images,
       property_documents,
       landlordId: _id,
