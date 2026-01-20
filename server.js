@@ -10,7 +10,7 @@ const InterestRoute = require("./routes/interestRoute.js")
 const ApplicationRoute = require("./routes/applicationRoute.js")
 app.use(cors({
     credentials: true,
-    origin : ["http://localhost:3000"]
+    origin : ["http://localhost:3000", "https://landlordship-auth.vercel.app/"]
 }))
 app.use(express.json())
 app.use(cookieParser());
