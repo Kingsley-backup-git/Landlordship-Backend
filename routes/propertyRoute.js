@@ -19,6 +19,8 @@ const {
   getPropertiesBySlug,
   getEachProperty,
   getEachPropertyForLoggedInUsers,
+  AddDocuments,
+  getPropertyDocuments
 } = require("../controllers/property.js");
 const requireAuth = require("../middleware/authMiddleware.js");
 route.post(
@@ -27,9 +29,17 @@ route.post(
   upload.fields([{ name: "property_images" }, { name: "property_documents" }]),
   createProperty,
 );
+route.post(
+  "/documents/add",
+  requireAuth,
+  upload.single("document"),
+  AddDocuments,
+);
 route.get("/all", requireAuth, getProperties);
+route.get("/documents", requireAuth, getPropertyDocuments);
 route.get("/search", requireAuth, getPaginatedProperties);
 route.get("/:slug", getPropertiesBySlug);
 route.get("/id/:propertyId", getEachProperty);
 route.get("/user/id/:propertyId", requireAuth, getEachPropertyForLoggedInUsers);
+
 module.exports = route;

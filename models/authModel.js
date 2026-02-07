@@ -28,13 +28,14 @@ const authSchema = new Schema({
         type: String,
         unique:true
     },
-    role: {
-        type: String,
-        enum : ["tenant", "landlord"],
-        default : "landlord"
+    isTenant: {
+        type: Boolean,
+        default: false,
     },
-     
-
-}, { timestamps: true })
+    isAgent: {
+        type: Boolean,
+        default: false,
+    },
+}, { timestamps: true });
 
 module.exports = mongoose.model("Auth", authSchema)

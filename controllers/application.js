@@ -1,13 +1,27 @@
 const Applications = require("../models/applicationModel");
+const Tenant = require("../models/tenantModel");
+const Auth = require("../models/authModel");
+const Property = require("../models/propertyModel");
 const cloudinary = require("../config/cloudinary");
+const mongoose = require("mongoose");
 const applyHandler = async (req, res) => {
 
   try {
-    const {propertyId} = req.body
+    const { propertyId } = req.body
+    const { _id } = req.user
+    if (!_id) {
+        return res.status(400).json({error : "Unauthorized"})
+    }
       if (!propertyId) {
         return res.status(400).json({error : "property id is required"})
       }
-    const findUser = await Applications.findOne({ email: req.body.email })
+      const findAuth = await Auth.findOne({_id})
+      if(!findAuth) {
+        return res.status(400).json({error : "Unauthorized"}) 
+      }
+
+   
+    const findUser = await Applications.findOne({ email: req.body.email, propertyId })
     if (findUser) {
         return res.status(400).json({error : "Email already applied"})
     }
@@ -214,7 +228,153 @@ const getApplications = async (req, res) => {
   }
  
 }
+
+/**
+ * Update application status
+ * When status is changed to "success", automatically create a Tenant record
+ */
+const updateApplicationStatus = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    const { applicationId } = req.params;
+    const { status } = req.body;
+
+    if (!_id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!applicationId) {
+      return res.status(400).json({ error: "Application ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(applicationId)) {
+      return res.status(400).json({ error: "Invalid application ID" });
+    }
+
+    if (!status || !["pending", "rejected", "success"].includes(status)) {
+      return res.status(400).json({ 
+        error: "Status is required and must be one of: pending, rejected, success" 
+      });
+    }
+
+    // Find the application
+    const application = await Applications.findById(applicationId)
+      .populate("propertyId");
+
+    if (!application) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    // Verify landlord owns the property
+    const property = await Property.findById(application.propertyId);
+    if (!property) {
+      return res.status(404).json({ error: "Property not found" });
+    }
+
+    if (property.landlordId.toString() !== _id.toString()) {
+      return res.status(403).json({ 
+        error: "You are not authorized to update this application" 
+      });
+    }
+
+    // Check if property already has a tenant
+    if (status === "success") {
+      const existingTenant = await Tenant.findOne({ 
+        propertyId: application.propertyId 
+      });
+
+      if (existingTenant) {
+        return res.status(400).json({ 
+          error: "This property already has an assigned tenant" 
+        });
+      }
+
+      // Check if tenant already exists for this application
+      const existingTenantByApplication = await Tenant.findOne({ 
+        applicationId: application._id 
+      });
+
+      if (existingTenantByApplication) {
+        return res.status(400).json({ 
+          error: "Tenant already exists for this application" 
+        });
+      }
+    }
+
+  
+  
+
+    // If status is "success", create Tenant record
+    if (status === "success") {
+      // Find or create Auth user for the tenant
+      let tenantUser = await Auth.findOne({ email: application.email });
+
+      if (!tenantUser) {
+       
+        return res.status(400).json({ 
+          error: "Tenant user account not found." 
+        });
+      }
+
+     application.status = status;
+      await application.save();
+
+      // Create Tenant record
+      const tenant = await Tenant.create({
+        applicationId: application._id,
+        propertyId: application.propertyId,
+        userId: tenantUser._id,
+        email: application.email,
+        firstName: application.firstName,
+        lastName: application.lastName,
+        phone: application.phone,
+        moveInDate: application.move_in_date,
+        status: "active",
+      });
+      tenantUser.isTenant = true
+      
+      await tenantUser.save()
+      return res.status(200).json({
+        message: "Application approved and tenant created successfully",
+        data: {
+          application,
+          tenant,
+        },
+      });
+    } else {
+          application.status = status;
+    await application.save();
+
+      return res.status(200).json({
+        message: "Application rejected",
+        data: {
+         status : "rejected"
+        },
+      });
+    }
+
+ 
+  } catch (error) {
+    console.log(error);
+    
+    if (error?.name === "ValidationError") {
+      return res.status(400).json({
+        error: Object.values(error?.errors).map((err) => err?.message),
+      });
+    }
+
+    if (error?.code === 11000) {
+      return res.status(400).json({ 
+        error: "Tenant already exists for this property or application" 
+      });
+    }
+
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   applyHandler,
-  getApplications
+  getApplications,
+  updateApplicationStatus,
 };

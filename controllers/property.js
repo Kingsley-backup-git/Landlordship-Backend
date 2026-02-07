@@ -1,20 +1,21 @@
 const cloudinary = require("../config/cloudinary");
 const Property = require("../models/propertyModel");
-const Auth = require("../models/authModel")
-const mongoose = require("mongoose")
+const Auth = require("../models/authModel");
+const mongoose = require("mongoose");
+const Documents = require("../models/documentModel");
 const createProperty = async (req, res) => {
   try {
     const { _id } = req.user;
-      const { document_name } = req.body
-      console.log(req.body)
+    const { document_name } = req.body;
+    console.log(req.body);
     if (!_id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-      if (document_name) {
-          return res.status(401).json({ error: "document_name is required" });
-      }
- 
+    if (document_name) {
+      return res.status(401).json({ error: "document_name is required" });
+    }
+
     const property_images = [];
 
     for (const file of req.files.property_images) {
@@ -26,17 +27,18 @@ const createProperty = async (req, res) => {
       }
     }
 
-  const property_documents = [];
-if (req.files?.property_documents) {
-  for (const file of req.files.property_documents) {
-    const docResult = await cloudinary.uploader.upload(file.path, { resource_type: "raw" });
-    property_documents.push({
-      name: req.body.document_name, 
-      url: docResult.secure_url,
-    });
-  }
-}
-   
+    const property_documents = [];
+    if (req.files?.property_documents) {
+      for (const file of req.files.property_documents) {
+        const docResult = await cloudinary.uploader.upload(file.path, {
+          resource_type: "raw",
+        });
+        property_documents.push({
+          name: req.body.document_name,
+          url: docResult.secure_url,
+        });
+      }
+    }
 
     const property = await Property.create({
       ...req.body,
@@ -44,7 +46,7 @@ if (req.files?.property_documents) {
       bedrooms: Number(req.body.bedrooms),
       bathrooms: Number(req.body.bathrooms),
       parkingspaces: Number(req.body.parkingspaces),
-      property_value : Number(req.body.property_value),
+      property_value: Number(req.body.property_value),
       property_images,
       property_documents,
       landlordId: _id,
@@ -54,7 +56,6 @@ if (req.files?.property_documents) {
       data: property,
     });
   } catch (error) {
-   
     if (error?.name === "ValidationError") {
       return res.status(400).json({
         error: Object.values(error?.errors).map((err) => err?.message),
@@ -66,7 +67,7 @@ if (req.files?.property_documents) {
       });
     }
     if (error?.http_code) {
-        return res.status(400).json({
+      return res.status(400).json({
         error: "Failed to upload documents",
       });
     }
@@ -75,165 +76,226 @@ if (req.files?.property_documents) {
   }
 };
 const getProperties = async (req, res) => {
-    try {
-        const { _id } = req.user;
+  try {
+    const { _id } = req.user;
 
-        if (!_id) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
-
-        const Properties = await Property.find({ landlordId: _id })
-        
-      
-      
-     res.status(200).json({data : Properties})
-
+    if (!_id) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-    catch (error) {
-        return res.status(500).json({error : "Server error"})
-    }
-}
+
+    const Properties = await Property.find({ landlordId: _id });
+
+    res.status(200).json({ data: Properties });
+  } catch (error) {
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 const getEachProperty = async (req, res) => {
-    try {
-        const { propertyId } = req.params;
+  try {
+    const { propertyId } = req.params;
 
-        if (!propertyId) {
-            return res.status(400).json({ error: "property id is required" });
-        }
-      if (!mongoose.Types.ObjectId.isValid(propertyId)) {
-    return res.status(400).json({ error: "property id is invalid" });
-}
-   
-      const Properties = await Property.findOne({_id : propertyId}).populate("landlordId")
-      
-      if (!Properties) {
-          return res.status(404).json({ error: "No Property found" });
+    if (!propertyId) {
+      return res.status(400).json({ error: "property id is required" });
     }
-      res.status(200).json({
-        data: {
-         
-          Properties
-     }})
+    if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+      return res.status(400).json({ error: "property id is invalid" });
+    }
 
+    const Properties = await Property.findOne({ _id: propertyId }).populate(
+      "landlordId",
+    );
+
+    if (!Properties) {
+      return res.status(404).json({ error: "No Property found" });
     }
-    catch (error) {
-      console.log(error)
-        return res.status(500).json({error : "Server error"})
-    }
-}
+    res.status(200).json({
+      data: {
+        Properties,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 
 const getEachPropertyForLoggedInUsers = async (req, res) => {
-  
-  
-    try {
-        const { propertyId } = req.params;
-        const { _id } = req.user
-if (!_id) {
+  try {
+    const { propertyId } = req.params;
+    const { _id } = req.user;
+    if (!_id) {
       return res.status(400).json({ error: "Unauthorized" });
-  }
-        if (!propertyId) {
-            return res.status(400).json({ error: "property id is required" });
-        }
-      if (!mongoose.Types.ObjectId.isValid(propertyId)) {
-    return res.status(400).json({ error: "property id is invalid" });
-}
-   
-      const Properties = await Property.findOne({_id : propertyId, landlordId : _id}).populate("landlordId")
-      
-      if (!Properties) {
-          return res.status(404).json({ error: "No Property found" });
     }
-      res.status(200).json({
-        data: {
-         
-          Properties
-     }})
+    if (!propertyId) {
+      return res.status(400).json({ error: "property id is required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(propertyId)) {
+      return res.status(400).json({ error: "property id is invalid" });
+    }
 
+    const Properties = await Property.findOne({
+      _id: propertyId,
+      landlordId: _id,
+    }).populate("landlordId");
+
+    if (!Properties) {
+      return res.status(404).json({ error: "No Property found" });
     }
-    catch (error) {
-      console.log(error)
-        return res.status(500).json({error : "Server error"})
-    }
-}
+    res.status(200).json({
+      data: {
+        Properties,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 
 const getPropertiesBySlug = async (req, res) => {
-    try {
-        const { slug } = req.params;
+  try {
+    const { slug } = req.params;
 
-        if (!slug) {
-            return res.status(400).json({ error: "Username is required" });
-        }
+    if (!slug) {
+      return res.status(400).json({ error: "Username is required" });
+    }
 
-      const User = await Auth.findOne({ slug })
-       if (!User) {
+    const User = await Auth.findOne({ slug });
+    if (!User) {
       return res.status(404).json({ error: "User not found" });
     }
-      const Properties = await Property.find({landlordId : User?._id})
-      
-    
-      res.status(200).json({
-        data: {
-          landlord: {
-            email: User?.email,
-            userName: User?.userName,
-            slug : User?.slug
-          },
-          Properties
-     }})
+    const Properties = await Property.find({ landlordId: User?._id });
 
-    }
-    catch (error) {
-      console.log(error)
-        return res.status(500).json({error : "Server error"})
-    }
-}
+    res.status(200).json({
+      data: {
+        landlord: {
+          email: User?.email,
+          userName: User?.userName,
+          slug: User?.slug,
+        },
+        Properties,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 
 const getPaginatedProperties = async (req, res) => {
-    try {
-       
-        const { _id } = req.user;
+  try {
+    const { _id } = req.user;
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-       
-        if (!_id) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
-  
-        const skipPages = (page - 1) * limit
 
-      const [properties, total] = await Promise.all([
+    if (!_id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const skipPages = (page - 1) * limit;
+
+    const [properties, total] = await Promise.all([
       Property.find({ landlordId: _id })
         .sort({ createdAt: -1 })
         .skip(skipPages)
         .limit(limit),
 
-      Property.countDocuments({ landlordId: _id })
+      Property.countDocuments({ landlordId: _id }),
     ]);
-        
-        res.status(200).json({
-            data: {
-                properties,
-                pagination: {
-                    total,
-                    limit,
-                    page,
-                    totalPages : Math.ceil(total/limit),
-                    hasMore : page !==   Math.ceil(total/limit) 
-                }
-     }})
 
+    res.status(200).json({
+      data: {
+        properties,
+        pagination: {
+          total,
+          limit,
+          page,
+          totalPages: Math.ceil(total / limit),
+          hasMore: page !== Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+const AddDocuments = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    const {name, expiryDate, type} = req.body
+    if (!name || !expiryDate, !type) {
+      return res.status(401).json({ error: "All fields are required" });
     }
-    catch (error) {
-        console.log(error)
-        return res.status(500).json({ error: "Server error" })
-        
+    if (!_id) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-}
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      resource_type: req.file.mimetype.startsWith("image/") ? "image" : "raw",
+    });
+
+  
+
+   
+     const newDoc = await Documents.create({
+        userId: _id,
+       url: result?.secure_url,
+       public_id: result?.public_id,
+        name,
+        type: type.toLowerCase(),
+        expiryDate
+      });
+
+          res.status(201).json({data : newDoc})
+    
+
+
+  } catch (error) {
+    if (error?.name === "ValidationError") {
+      return res
+        .status(400)
+        .json({
+          error: Object.values(error?.errors).map((err) => err?.message),
+        });
+    }
+      if (error?.code === 110000) {
+      return res
+        .status(400)
+        .json({
+          error: "Document name already exists",
+        });
+    }
+    if (error.http_code) {
+      return res.status(502).json({ error: "File upload failed. Please try again." });
+    }
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+const getPropertyDocuments = async (req, res) => {
+  try {
+    const { _id } = req.user;
+
+    if (!_id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const documents = await Documents.find({ userId: _id });
+
+    res.status(200).json({ data: documents });
+  } catch (error) {
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 module.exports = {
   createProperty,
-    getProperties,
+  getProperties,
   getPaginatedProperties,
   getPropertiesBySlug,
   getEachProperty,
-  getEachPropertyForLoggedInUsers
+  getEachPropertyForLoggedInUsers,
+  AddDocuments,
+  getPropertyDocuments
 };

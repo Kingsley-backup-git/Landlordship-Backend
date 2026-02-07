@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { applyHandler, getApplications } = require("../controllers/application");
+const { applyHandler, getApplications, updateApplicationStatus } = require("../controllers/application");
 const multer = require("multer");
 const requireAuth = require("../middleware/authMiddleware")
 const storage = multer.diskStorage({
@@ -16,6 +16,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 router.post(
   "/apply",
+  requireAuth,
   upload.fields([
     { name: "idDoc" },
     { name: "addressDoc" },
@@ -26,6 +27,9 @@ router.post(
   applyHandler,
 );
 
-router.get("/:propertyId", requireAuth,getApplications)
+router.get("/:propertyId", requireAuth, getApplications);
+
+// Landlord updates application status (approve/reject)
+router.patch("/:applicationId/status", requireAuth, updateApplicationStatus);
 
 module.exports = router;

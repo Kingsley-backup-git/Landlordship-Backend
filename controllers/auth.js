@@ -3,14 +3,14 @@ const validator = require("validator");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const createToken = async (id) => {
+const createToken = async (id, role) => {
   const token = await jwt.sign({ _id: id }, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: "1hr",
   });
   return token;
 };
-const refreshToken = async (id) => {
-  const token = await jwt.sign({ _id: id }, process.env.REFRESH_TOKEN_SECRET, {
+const refreshToken = async (id, role) => {
+  const token = await jwt.sign({ _id: id}, process.env.REFRESH_TOKEN_SECRET, {
     expiresIn: "1d",
   });
   return token;
@@ -121,6 +121,9 @@ const LoginUser = async (req, res) => {
   }
 };
 
+
+
+
 const refreshTokenHandler = (req, res) => {
   const refreshToken = req.cookies.refreshToken;
   if (!refreshToken) {
@@ -156,9 +159,12 @@ const getUser = async (req, res) => {
   
 };
 
+
+
 module.exports = {
   RegisterUser,
   LoginUser,
     refreshTokenHandler,
-  getUser
+  getUser,
+ 
 };
