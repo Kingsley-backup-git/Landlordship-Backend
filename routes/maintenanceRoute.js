@@ -13,6 +13,7 @@ const {
   getAgentMaintenanceRequests,
   agentAcceptRequest,
   agentRejectRequest,
+  getAssignedAgentMaintenanceRequests
 } = require("../controllers/maintenanceRequest");
 
 const storage = multer.diskStorage({
@@ -53,5 +54,8 @@ router.patch("/:id/agent-reject", requireAuth, agentRejectRequest);
 // ---- Shared (tenant/landlord/agent as per getMaintenanceRequestById logic) ----
 // GET /maintenance/:id → single request details
 router.get("/:id", requireAuth, getMaintenanceRequestById);
+
+
+router.get("/agent/all", requireAuth, getAssignedAgentMaintenanceRequests)
 
 module.exports = router;

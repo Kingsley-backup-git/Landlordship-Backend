@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary");
 const { sendAgentAssignmentEmail } = require("../utils/emailService");
 
+const {pushNotification} = require("../services/websocket/pushNotification")
 // Landlord is implicit (any authenticated user). Extra dashboards via flags:
 // - isTenant: tenant dashboard enabled
 // - isAgent: agent dashboard enabled
@@ -15,9 +16,16 @@ const { sendAgentAssignmentEmail } = require("../utils/emailService");
 /**
  * Tenant creates a maintenance request for their assigned property
  * POST /maintenance
+ * 
  */
+const { getIO } = require("../services/globalServer");
+
+
+
 const createMaintenanceRequest = async (req, res) => {
+  
   try {
+    const io = getIO();
     const { _id } = req.user;
 
     if (!_id) {
@@ -99,8 +107,17 @@ const createMaintenanceRequest = async (req, res) => {
       { path: "tenantId", select: "firstName lastName email phone" },
       { path: "propertyId", select: "propertyName address" },
     ]);
+  const payload = await Notification.create({
+        recipientId: property.landlordId,
+        type: "maintenance_request_created",
+        title: "New Maintenance request",
+        message: `You have a new maintenance request.`,
+        maintenanceRequestId: maintenanceRequest._id,
+       metadata: { landlordId: property.landlordId.toString(),  tenantId:tenant._id.toString(), propertyId : propertyId },
+      });
 
-    res.status(201).json({
+pushNotification(io, property.landlordId.toString(), payload);
+    return res.status(201).json({
       message: "Maintenance request created successfully",
       data: maintenanceRequest,
     });
@@ -386,6 +403,7 @@ const getMaintenanceRequestById = async (req, res) => {
  */
 const acceptRequest = async (req, res) => {
   try {
+      const io = getIO();
     const { _id } = req.user;
     const { id } = req.params;
 
@@ -415,7 +433,20 @@ const acceptRequest = async (req, res) => {
       { path: "propertyId", select: "propertyName address city state" },
       { path: "assignedAgentId", select: "name email phone availability" },
     ]);
+      const tenant = await Tenant.findOne({ 
+     _id: request.tenantId, 
+    
+    });
+  const payload = await Notification.create({
+        recipientId: tenant?.userId,
+        type: "accepted_request",
+        title: "Landlord accepted request",
+        message: `Your landlord has accepted your maintenance request.`,
+        maintenanceRequestId: request._id,
+       metadata: { requestId: request._id.toString(),  tenantId: request.tenantId.toString() },
+      });
 
+    pushNotification(io,tenant?.userId.toString(), payload);
     res.status(200).json({ message: "Request accepted", data: request });
   } catch (err) {
     console.log(err);
@@ -429,6 +460,7 @@ const acceptRequest = async (req, res) => {
  */
 const rejectRequest = async (req, res) => {
   try {
+      const io = getIO();
     const { _id } = req.user;
     const { id } = req.params;
 
@@ -458,7 +490,16 @@ const rejectRequest = async (req, res) => {
       { path: "propertyId", select: "propertyName address city state" },
       { path: "assignedAgentId", select: "name email phone availability" },
     ]);
+  const payload = await Notification.create({
+        recipientId: request.tenantId.userId._id,
+        type: "rejected_request",
+        title: "Landlord rejected request",
+        message: `Your landlord has rejected your maintenance request.`,
+        maintenanceRequestId: request._id,
+        metadata: { requestId: request._id.toString(),  tenantId:request.tenantId },
+      });
 
+   pushNotification(io,request.tenantId.userId._id.toString(), payload);
     res.status(200).json({ message: "Request rejected", data: request });
   } catch (err) {
     console.log(err);
@@ -473,6 +514,7 @@ const rejectRequest = async (req, res) => {
  */
 const assignAgent = async (req, res) => {
   try {
+      const io = getIO();
     const { _id } = req.user;
     const { id } = req.params;
     const { agentId } = req.body;
@@ -531,18 +573,19 @@ const assignAgent = async (req, res) => {
     if (findAgent._id) {
       agent.userId = findAgent?._id
       await Auth.updateOne({ _id: findAgent._id }, { $set: { isAgent: true } });
-      await Notification.create({
+   
+      await agent.save()
+    }
+      const payload = await Notification.create({
         recipientId: findAgent._id,
         type: "agent_assignment",
         title: "New maintenance assignment",
-        message: `You have been assigned to: ${title}. Please confirm or reject availability.`,
+        message: `You have been assigned a request. Please confirm or reject availability.`,
         maintenanceRequestId: request._id,
         metadata: { requestId: request._id.toString(), agentId: agent._id.toString() },
       });
 
-      await agent.save()
-    }
-
+   pushNotification(io,findAgent._id.toString(), payload);
     res.status(200).json({
       message: "Agent assigned. Email and in-app notification sent.",
       data: reqPopulated,
@@ -573,11 +616,12 @@ const getAgentMaintenanceRequests = async (req, res) => {
       return res.status(200).json({ data: [], message: "No agent profile linked to this account" });
     }
 
-    const requests = await MaintenanceRequest.find({ assignedAgentId: agent._id })
+    const requests = await MaintenanceRequest.find({ assignedAgentId: agent._id, status: "assigned_pending" })
       .populate([
         { path: "propertyId", select: "propertyName address city state" },
         { path: "tenantId", select: "firstName lastName email phone moveInDate", populate: { path: "userId", select: "userName email" } },
         { path: "landlordId", select: "userName email" },
+           { path: "assignedAgentId"},
       ])
       .sort({ createdAt: -1 });
 
@@ -687,6 +731,39 @@ const agentRejectRequest = async (req, res) => {
   }
 };
 
+
+
+const getAssignedAgentMaintenanceRequests = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    if (!_id) return res.status(401).json({ error: "Unauthorized" });
+
+    const user = await Auth.findById(_id);
+    if (!user || user.isAgent !== true) {
+      return res.status(403).json({ error: "Only agents can access this endpoint" });
+    }
+
+    const agent = await Agent.findOne({ email: user?.email });
+    if (!agent) {
+      return res.status(200).json({ data: [], message: "No agent profile linked to this account" });
+    }
+
+    const requests = await MaintenanceRequest.find({ assignedAgentId: agent._id, status: "assigned" })
+      .populate([
+        { path: "propertyId", select: "propertyName address city state" },
+        { path: "tenantId", select: "firstName lastName email phone moveInDate", populate: { path: "userId", select: "userName email" } },
+        { path: "landlordId", select: "userName email" },
+           { path: "assignedAgentId"},
+      ])
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ data: requests });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   createMaintenanceRequest,
   getTenantMaintenanceRequests,
@@ -699,4 +776,5 @@ module.exports = {
   getAgentMaintenanceRequests,
   agentAcceptRequest,
   agentRejectRequest,
+  getAssignedAgentMaintenanceRequests
 };

@@ -10,15 +10,15 @@ const getMyNotifications = async (req, res) => {
   try {
     const { _id } = req.user;
     if (!_id) return res.status(401).json({ error: "Unauthorized" });
-
-    const { read, limit = 50 } = req.query;
     const query = { recipientId: _id };
-    if (read !== undefined) query.read = read === "true";
-
     const notifications = await Notification.find(query)
-      .populate("maintenanceRequestId", "title status propertyId")
+     
+      .populate([
+        { path: "maintenanceRequestId", select: "title status propertyId" },
+            {path : "applicationId", select: "propertyId", populate : {path : "propertyId", select : "propertyName"}}
+      ])
       .sort({ createdAt: -1 })
-      .limit(Number(limit))
+     
       .lean();
 
     res.status(200).json({ data: notifications });

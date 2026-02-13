@@ -3,10 +3,18 @@ const Tenant = require("../models/tenantModel");
 const Auth = require("../models/authModel");
 const Property = require("../models/propertyModel");
 const cloudinary = require("../config/cloudinary");
+const Notification = require("../models/notificationModel")
 const mongoose = require("mongoose");
+
+const pushNotification = require("../services/websocket/pushNotification")
+const { getIO } = require("../services/globalServer");
+
+
+
 const applyHandler = async (req, res) => {
 
   try {
+    const io = getIO();
     const { propertyId } = req.body
     const { _id } = req.user
     if (!_id) {
@@ -25,7 +33,10 @@ const applyHandler = async (req, res) => {
     if (findUser) {
         return res.status(400).json({error : "Email already applied"})
     }
- 
+ const property = await Property.findOne({_id : propertyId})
+ if(!property){
+  return res.status(404).json({error : "Property not found"})
+ }
     const IdDocument = await Promise.all(
       req.files.idDoc.map(async (file) => {
         const result = await cloudinary.uploader.upload(file.path, {
@@ -182,8 +193,26 @@ const applyHandler = async (req, res) => {
      
               signature : req.body.signature
     });
-      
+ 
       await applications.save()
+     const payload =  await Notification.create({
+      recipientId : property.landlordId,
+      title : "New Property Application",
+      message : "You have a new property Application. Please review it and accept or reject it",
+      metadata : {
+        applicationId : applications._id,
+        propertyId : propertyId,
+        tenantId : applications.userId,
+
+      },
+      type : "property_application",
+      applicationId : applications._id,
+      read:false
+
+
+
+         })
+    await pushNotification(io, property.landlordId.toString(), payload);
       res.status(200).json({data : applications})
 
   } catch (error) {
@@ -332,8 +361,27 @@ const updateApplicationStatus = async (req, res) => {
         status: "active",
       });
       tenantUser.isTenant = true
-      
+     
       await tenantUser.save()
+  const payload   = await Notification.create({
+        recipientId : tenantUser._id,
+        title : "Application Approved",
+        message : "Your recent application has been approved",
+        metadata : {
+          applicationId : application._id,
+          propertyId : application.propertyId,
+          tenantId :  tenantUser._id,
+  
+        },
+        type : "approved_tenancy",
+        applicationId : application._id,
+        read:false
+  
+  
+  
+      })
+      
+       await pushNotification(io, tenantUser._id.toString(), payload);
       return res.status(200).json({
         message: "Application approved and tenant created successfully",
         data: {
@@ -344,7 +392,23 @@ const updateApplicationStatus = async (req, res) => {
     } else {
           application.status = status;
     await application.save();
+    await Notification.create({
+      recipientId : tenantUser._id,
+      title : "Application rejected",
+      message : "Your recent application has been rejected",
+      metadata : {
+        applicationId : application._id,
+        propertyId : application.propertyId,
+        tenantId :  tenantUser._id,
 
+      },
+      type : "rejected_tenancy",
+      applicationId : application._id,
+      read:false
+
+
+
+     })
       return res.status(200).json({
         message: "Application rejected",
         data: {

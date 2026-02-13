@@ -4,13 +4,20 @@ const Property = require("../models/propertyModel");
 const Auth = require("../models/authModel");
 const mongoose = require("mongoose");
 const { sendAgentAssignmentEmail } = require("../utils/emailService");
+const Notification = require("../models/notificationModel")
 
+const pushNotification = require("../services/websocket/pushNotification")
 /**
  * Create a new agent
  * POST /api/agent
  */
+const { getIO } = require("../services/globalServer");
+
+
+
 const createAgent = async (req, res) => {
   try {
+    const io = getIO();
     const { name, email, phone, availability, specialization, company, address } = req.body;
 
     if (!name || !email || !phone) {
@@ -255,6 +262,7 @@ const assignAgentToMaintenanceRequest = async (req, res) => {
       maintenanceRequest
     );
 
+   
     // Populate related data
     await maintenanceRequest.populate([
       { 
@@ -271,7 +279,27 @@ const assignAgentToMaintenanceRequest = async (req, res) => {
         select: "name email phone availability company" 
       },
     ]);
+    const payload = await Notification.create({
+      recipientId : agent._id,
+      title : "New Maintenance Request Assigned to you",
+      message : "You have been assigned to a new maintenance request. Please confirm or reject your availability for this request.",
+      metadata : {
+        maintenanceRequestId:maintenanceRequest._id,
+        propertyId : maintenanceRequest.propertyId,
+        tenantId:maintenanceRequest.tenantId,
+        landlordId:maintenanceRequest.landlordId,
+        agentId:agent._id,
+      
+      },
+      type : "maintenance_assignment",
+      maintenanceRequestId: maintenanceRequest._id,
+      read:false
 
+
+
+    })
+    
+     await pushNotification(io, agent._id.toString(), payload);
     res.status(200).json({
       message: "Agent assigned successfully. Email notification sent.",
       data: maintenanceRequest,
