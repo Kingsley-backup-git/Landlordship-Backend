@@ -7,7 +7,7 @@ function globalServer() {
   const server = http.createServer(app);
 
   io = new Server(server, {
-    cors: { origin: "http://localhost:3000" },
+    cors: { origin: ["http://localhost:3000", "https://landlordship-auth.vercel.app"] },
   });
 
   return { io, server };
