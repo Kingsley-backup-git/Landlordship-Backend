@@ -3,7 +3,7 @@ const mongoose = require("mongoose")
 const Notification = require("../models/notificationModel")
 const Property = require("../models/propertyModel")
 
-const pushNotification = require("../services/websocket/pushNotification")
+const {pushNotification} = require("../services/websocket/pushNotification")
 const { getIO } = require("../services/globalServer");
 
 

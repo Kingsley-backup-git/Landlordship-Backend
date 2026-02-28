@@ -12,7 +12,7 @@ const Messages = require("../models/messageModel")
 const getOrCreateChat = async (req, res) => {
   try {
     const { _id } = req.user;
-    const { otherUserId, context } = req.body;
+    const { otherUserId, context, maintenanceId } = req.body;
 
     if (!_id) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -39,7 +39,7 @@ const getOrCreateChat = async (req, res) => {
     );
 const chatKey = participants.join("_"); 
     // Try to find existing chat
-    let chat = await Chat.findOne({ chatKey })
+    let chat = await Chat.findOne({ chatKey, maintenanceRequestId:maintenanceId })
       .populate("participants", "userName email")
       .populate("lastMessage");
 
@@ -51,6 +51,7 @@ const chatKey = participants.join("_");
     const chatData = {
       participants,
       chatKey,
+      maintenanceRequestId:maintenanceId,
       context: context || { type: "general", referenceId: null }
     };
 
@@ -170,7 +171,7 @@ const getChatById = async (req, res) => {
 
     const chat = await Chat.findById(chatId)
       .populate("participants", "userName email isAgent isTenant")
-      .populate("lastMessage");
+      .populate("lastMessage").populate("maintenanceRequestId");
 
     if (!chat) {
       return res.status(404).json({ error: "Chat not found" });

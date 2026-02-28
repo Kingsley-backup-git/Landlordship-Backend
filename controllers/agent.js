@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 const { sendAgentAssignmentEmail } = require("../utils/emailService");
 const Notification = require("../models/notificationModel")
 
-const pushNotification = require("../services/websocket/pushNotification")
+const {pushNotification} = require("../services/websocket/pushNotification")
 /**
  * Create a new agent
  * POST /api/agent

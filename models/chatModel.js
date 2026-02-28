@@ -22,6 +22,10 @@ const ChatSchema = new Schema({
       default: null
     }
   },
+  maintenanceRequestId : {
+    type: mongoose.Schema.Types.ObjectId,
+    ref : "MaintenanceRequest"
+  },
 
   lastMessage: {
     type: mongoose.Schema.Types.ObjectId,
